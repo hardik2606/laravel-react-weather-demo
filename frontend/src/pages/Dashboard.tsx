@@ -3,8 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { DateTime } from 'luxon';
 
-const WEATHER_API_KEY = '35e87dc48724e712b1167e3ee717d57a';
-
+// console.log('All env variables:', import.meta.env);
+// console.log('VITE_WEATHER_API_KEY:', import.meta.env.VITE_WEATHER_API_KEY);
+// console.log('MODE:', import.meta.env.MODE);
+// console.log('DEV:', import.meta.env.DEV);
+const WEATHER_API_KEY = import.meta.env.VITE_WEATHER_API_KEY as string;
+// console.log('WEATHER_API_KEY', WEATHER_API_KEY);
 // For demo: a small static list for autosuggest. Replace with a real API for production.
 const CITY_SUGGESTIONS = [
   "Amsterdam", "Paris", "London", "Surat", "Ahmedabad", "New York", "Tokyo", "Sydney", "Berlin", "Delhi"
@@ -19,7 +23,7 @@ const FIXED_CITIES = [
 const WEATHER_BACKGROUNDS: Record<string, string> = {
   clear:    "url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1200&q=80')",
   clouds:   "url('https://images.unsplash.com/photo-1534088568595-a066f410bcda?auto=format&fit=crop&w=1200&q=80')",
-  rain:     "url('https://images.unsplash.com/photo-1519692933481-e162a57d6721?auto=format&fit=crop&w=1200&q=80')",
+  rain:     "url('https://images.pexels.com/photos/14060192/pexels-photo-14060192.jpeg?auto=format&fit=crop&w=1200&q=80')",
   drizzle:  "url('https://images.unsplash.com/photo-1551854838-02c201dd54c5?auto=format&fit=crop&w=1200&q=80')",
   thunderstorm: "url('https://images.unsplash.com/photo-1605727216801-e27ce1d0cc28?auto=format&fit=crop&w=1200&q=80')",
   snow:     "url('https://images.unsplash.com/photo-1491002052546-bf38f186af56?auto=format&fit=crop&w=1200&q=80')",
@@ -57,7 +61,6 @@ const getCityIllustration = (city: string, country: string) => {
 };
 
 const getBackgroundByWeather = (main: string) => {
-  console.log('main', main);
   return WEATHER_BACKGROUNDS[main?.toLowerCase()] || WEATHER_BACKGROUNDS.default;
 };
 
@@ -73,7 +76,6 @@ const Dashboard: React.FC = () => {
   const [fixedWeather, setFixedWeather] = useState<any[]>([null, null]);
   const [fixedTimes, setFixedTimes] = useState<string[]>(['', '']);
   const [fixedZones, setFixedZones] = useState<string[]>(['', '']);
-  const [festival, setFestival] = useState('No major festival today');
   const [aiSummary, setAiSummary] = useState('');
   const [loadingAI, setLoadingAI] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
@@ -239,8 +241,53 @@ const Dashboard: React.FC = () => {
 
   // Get background based on weather
   const mainWeather = weather?.weather?.[0]?.main?.toLowerCase() || 'default';
-  console.log('mainWeather', mainWeather);
   const backgroundImage = getBackgroundByWeather(mainWeather);
+
+  // Add a function to get short funny weather titles
+  const getShortWeatherTitle = () => {
+    const titles = [
+      "🌤️ Weather Magic",
+      "🌦️ Cloud Chaser",
+      "☀️ Sun Seeker",
+      "🌧️ Rain Tracker",
+      "❄️ Snow Finder",
+      "🌪️ Storm Hunter",
+      "🌈 Weather Pro",
+      "🌡️ Temp Master",
+      "💨 Wind Watcher",
+      "🌫️ Fog Finder",
+      "⚡ Lightning Pro",
+      "🌊 Wave Tracker",
+      "🏔️ Peak Weather",
+      "🏖️ Beach Weather",
+      "🌅 Sky Watcher"
+    ];
+    return titles[Math.floor(Math.random() * titles.length)];
+  };
+
+  // Add this temporarily at the top of your Dashboard component to test the API
+  useEffect(() => {
+    // Test the weather API
+    const testWeatherAPI = async () => {
+      try {
+        const testUrl = `https://api.openweathermap.org/data/2.5/weather?q=London&appid=${WEATHER_API_KEY}&units=metric`;
+        const response = await fetch(testUrl);
+        const data = await response.json();
+        
+        if (response.ok) {
+          console.log('✅ Weather API is working!', data.name, data.main.temp);
+        } else {
+          console.log('❌ Weather API error:', data);
+        }
+      } catch (error) {
+        console.log('❌ Weather API failed:', error);
+      }
+    };
+    
+    if (WEATHER_API_KEY) {
+      testWeatherAPI();
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -254,7 +301,7 @@ const Dashboard: React.FC = () => {
 
   return (
     <div
-      className="min-h-screen w-full flex flex-col items-center justify-center"
+      className="min-h-screen w-full flex flex-col relative overflow-auto"
       style={{
         backgroundImage: backgroundImage,
         backgroundSize: 'cover',
@@ -262,12 +309,34 @@ const Dashboard: React.FC = () => {
         backgroundRepeat: 'no-repeat',
       }}
     >
-      {/* Black overlay only when weather is shown */}
-      {weather && (
-        <div className="absolute inset-0 bg-black/40 z-0" />
-      )}
-      {/* Main Content */}
-      <div className="relative z-10 w-full max-w-6xl mx-auto flex flex-row gap-8 py-12">
+      {/* Black overlay - full screen */}
+      <div className="fixed inset-0 bg-black/40 z-0" />
+      
+      {/* Header - Fixed at top */}
+      <div className="relative z-10 w-full bg-black/30 backdrop-blur-sm border-b border-white/20">
+        <div className="max-w-6xl mx-auto px-8 py-4 flex justify-between items-center">
+          {/* Left side - Demo name */}
+          <div className="text-white text-2xl font-bold">
+            {getShortWeatherTitle()}
+          </div>
+          
+          {/* Right side - User info and logout */}
+          <div className="flex items-center gap-4">
+            <div className="text-white font-semibold">
+              Welcome, {user?.name || 'User'}!
+            </div>
+            <button
+              onClick={handleLogout}
+              className="py-2 px-4 rounded bg-blue-500 text-white font-semibold hover:bg-blue-600 transition"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Main Content - Below header */}
+      <div className="relative z-10 w-full max-w-6xl mx-auto flex flex-row gap-8 py-12 px-8">
         {/* Main Weather Card */}
         <div className="flex-1">
           {/* Search bar */}
@@ -317,6 +386,7 @@ const Dashboard: React.FC = () => {
               )}
             </div>
           </div>
+          
           {/* Daily Forecast Card */}
           {weather && (
             <div className="rounded-3xl bg-black/60 shadow-2xl p-8 text-white mb-8">
@@ -367,22 +437,18 @@ const Dashboard: React.FC = () => {
               {error && <div className="text-red-400 text-center mt-2">{error}</div>}
             </div>
           )}
-          {/* Festival & AI Summary */}
-          <div className="grid grid-cols-2 gap-6">
-            <div className="rounded-3xl bg-black/60 shadow-2xl p-6 text-white">
-              <div className="font-bold text-lg mb-2">🎉 Today's Festival</div>
-              <div className="text-white font-bold text-lg">{festival}</div>
-            </div>
-            <div className="rounded-3xl bg-black/60 shadow-2xl p-6 text-white">
-              <div className="font-bold text-lg mb-2">🤖 AI Weather Summary</div>
-              {loadingAI ? (
-                <div>Getting AI summary...</div>
-              ) : (
-                <div className="whitespace-pre-line font-bold">{aiSummary}</div>
-              )}
-            </div>
+          
+          {/* AI Summary - now full width */}
+          <div className="rounded-3xl bg-black/60 shadow-2xl p-6 text-white">
+            <div className="font-bold text-lg mb-2">🤖 AI Weather Summary</div>
+            {loadingAI ? (
+              <div>Getting AI summary...</div>
+            ) : (
+              <div className="whitespace-pre-line font-bold">{aiSummary}</div>
+            )}
           </div>
         </div>
+        
         {/* Right Side: Fixed Cities */}
         <div className="flex flex-col gap-8 w-[260px]">
           {FIXED_CITIES.map((c, i) => (
@@ -407,13 +473,6 @@ const Dashboard: React.FC = () => {
           ))}
         </div>
       </div>
-      {/* Logout button fixed at top right */}
-      <button
-        onClick={handleLogout}
-        className="fixed top-6 right-8 py-2 px-4 rounded bg-blue-500 text-white font-semibold hover:bg-blue-600 transition z-50"
-      >
-        Logout
-      </button>
     </div>
   );
 };

@@ -2,6 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
+// Weather backgrounds for auth page
+const AUTH_BACKGROUNDS = [
+  "url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1200&q=80')",
+  "url('https://images.unsplash.com/photo-1534088568595-a066f410bcda?auto=format&fit=crop&w=1200&q=80')",
+  "url('https://images.unsplash.com/photo-1551854838-02c201dd54c5?auto=format&fit=crop&w=1200&q=80')",
+  "url('https://images.unsplash.com/photo-1605727216801-e27ce1d0cc28?auto=format&fit=crop&w=1200&q=80')",
+  "url('https://images.unsplash.com/photo-1491002052546-bf38f186af56?auto=format&fit=crop&w=1200&q=80')"
+];
+
 // Simple toast component (for future use, not needed for field errors)
 const Toast: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => (
   <div className="fixed top-6 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded shadow-lg z-50">
@@ -12,45 +21,37 @@ const Toast: React.FC<{ message: string; onClose: () => void }> = ({ message, on
 
 const AuthCard: React.FC = () => {
   const [tab, setTab] = useState<'login' | 'register'>('login');
-
-  // Register fields and errors
   const [name, setName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [regErrors, setRegErrors] = useState<{ name?: string; email?: string; password?: string; confirmPassword?: string }>({});
   const [regServerError, setRegServerError] = useState('');
-
-  // Login fields and errors
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginErrors, setLoginErrors] = useState<{ email?: string; password?: string }>({});
   const [loginServerError, setLoginServerError] = useState('');
-
-  // State
   const [loading, setLoading] = useState(false);
   const { login, register, user } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect to dashboard if already logged in
+  const backgroundImage = "url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1200&q=80')";
+
   useEffect(() => {
     if (user) {
       navigate('/dashboard', { replace: true });
     }
   }, [user, navigate]);
 
-  // Email validation
   const isValidEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  // Login button enabled only if valid email and password
   const isLoginDisabled =
     loading ||
     !loginEmail ||
     !loginPassword ||
     !isValidEmail(loginEmail);
 
-  // Register button enabled only if all fields filled and passwords match
   const isRegisterDisabled =
     loading ||
     !name ||
@@ -60,7 +61,7 @@ const AuthCard: React.FC = () => {
     regPassword !== confirmPassword ||
     !isValidEmail(regEmail);
 
-  // Login handler
+  // LOGIN HANDLER
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginServerError('');
@@ -74,15 +75,17 @@ const AuthCard: React.FC = () => {
     setLoading(true);
     try {
       await login(loginEmail, loginPassword);
-      navigate('/dashboard');
+      // navigate('/dashboard');
     } catch (err: any) {
-      setLoginServerError(err.response?.data?.message || 'Login failed. Please try again.');
+      console.log('Login error:', err);
+      const errorMessage = err.response?.data?.message || 'Login failed. Please try again.';
+      setLoginServerError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  // Register handler
+  // REGISTER HANDLER
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegServerError('');
@@ -101,13 +104,15 @@ const AuthCard: React.FC = () => {
       await register(name, regEmail, regPassword, confirmPassword);
       navigate('/dashboard');
     } catch (err: any) {
-      setRegServerError(err.response?.data?.message || 'Registration failed. Please try again.');
+      console.log('Register error:', err);
+      const errorMessage = err.response?.data?.message || 'Registration failed. Please try again.';
+      setRegServerError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  // Handlers to clear field errors on change
+  // CLEAR ERRORS ON INPUT
   const handleLoginEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setLoginEmail(e.target.value);
     setLoginErrors(errors => ({ ...errors, email: undefined }));
@@ -140,133 +145,198 @@ const AuthCard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
-        {/* Tabs */}
-        <div className="flex mb-6">
-          <button
-            className={`flex-1 py-2 rounded-t-xl font-semibold transition ${tab === 'login' ? 'bg-purple-200 text-gray-900' : 'bg-gray-100 text-gray-400'}`}
-            onClick={() => setTab('login')}
-          >
-            Log In
-          </button>
-          <button
-            className={`flex-1 py-2 rounded-t-xl font-semibold transition ${tab === 'register' ? 'bg-purple-200 text-gray-900' : 'bg-gray-100 text-gray-400'}`}
-            onClick={() => setTab('register')}
-          >
-            Sign Up
-          </button>
+    <div
+      className="min-h-screen w-full flex flex-col items-center justify-center relative overflow-auto"
+      style={{
+        backgroundImage: backgroundImage,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
+      {/* Black overlay - full screen */}
+      <div className="fixed inset-0 bg-black/50 z-0" />
+      {/* Centered Logo and Text */}
+      <div className="relative z-10 text-center mb-8">
+        <div className="text-6xl mb-4">🌤️</div>
+        <div className="text-4xl font-bold text-white mb-2">Weather Magic</div>
+        <div className="text-xl text-white/80">Your Weather Adventure Awaits</div>
+      </div>
+
+      {/* Main Content */}
+      <div className="relative z-10 w-full max-w-md mx-auto px-8">
+        <div className="bg-black/60 backdrop-blur-md rounded-3xl shadow-2xl p-8 text-white">
+          {/* Tabs */}
+          <div className="flex mb-8">
+            <button
+              className={`flex-1 py-3 rounded-t-xl font-semibold transition ${
+                tab === 'login' 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-white/20 text-gray-300 hover:bg-white/30'
+              }`}
+              onClick={() => setTab('login')}
+              disabled={loading}
+            >
+              Log In
+            </button>
+            <button
+              className={`flex-1 py-3 rounded-t-xl font-semibold transition ${
+                tab === 'register' 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-white/20 text-gray-300 hover:bg-white/30'
+              }`}
+              onClick={() => setTab('register')}
+              disabled={loading}
+            >
+              Sign Up
+            </button>
+          </div>
+
+          {/* Form */}
+          {tab === 'login' ? (
+            <form className="space-y-6" onSubmit={handleLogin} noValidate>
+              {loginServerError && (
+                <div className="bg-red-500/20 border border-red-400 text-red-200 px-4 py-3 rounded-lg text-center mb-2">
+                  {loginServerError}
+                </div>
+              )}
+              <div>
+                <input
+                  type="email"
+                  placeholder="Enter your email"
+                  className={`w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 border ${
+                    loginErrors.email ? 'border-red-400' : 'border-white/30'
+                  }`}
+                  value={loginEmail}
+                  onChange={handleLoginEmailChange}
+                  required
+                  disabled={loading}
+                />
+                {loginErrors.email && (
+                  <div className="text-red-300 text-sm mt-2">{loginErrors.email}</div>
+                )}
+              </div>
+              <div>
+                <input
+                  type="password"
+                  placeholder="Enter password"
+                  className={`w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 border ${
+                    loginErrors.password ? 'border-red-400' : 'border-white/30'
+                  }`}
+                  value={loginPassword}
+                  onChange={handleLoginPasswordChange}
+                  required
+                  disabled={loading}
+                />
+                {loginErrors.password && (
+                  <div className="text-red-300 text-sm mt-2">{loginErrors.password}</div>
+                )}
+              </div>
+              <button
+                type="submit"
+                disabled={isLoginDisabled}
+                className="w-full py-3 rounded-lg bg-blue-500 text-white font-semibold text-lg hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {loading ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin h-5 w-5 mr-2 text-white" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Loading...
+                  </span>
+                ) : 'Log In'}
+              </button>
+            </form>
+          ) : (
+            <form className="space-y-6" onSubmit={handleRegister} noValidate>
+              {regServerError && (
+                <div className="bg-red-500/20 border border-red-400 text-red-200 px-4 py-3 rounded-lg text-center mb-2">
+                  {regServerError}
+                </div>
+              )}
+              <div>
+                <input
+                  type="text"
+                  placeholder="Enter your name"
+                  className={`w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 border ${
+                    regErrors.name ? 'border-red-400' : 'border-white/30'
+                  }`}
+                  value={name}
+                  onChange={handleRegNameChange}
+                  required
+                  disabled={loading}
+                />
+                {regErrors.name && (
+                  <div className="text-red-300 text-sm mt-2">{regErrors.name}</div>
+                )}
+              </div>
+              <div>
+                <input
+                  type="email"
+                  placeholder="Enter your email"
+                  className={`w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 border ${
+                    regErrors.email ? 'border-red-400' : 'border-white/30'
+                  }`}
+                  value={regEmail}
+                  onChange={handleRegEmailChange}
+                  required
+                  disabled={loading}
+                />
+                {regErrors.email && (
+                  <div className="text-red-300 text-sm mt-2">{regErrors.email}</div>
+                )}
+              </div>
+              <div>
+                <input
+                  type="password"
+                  placeholder="Create password"
+                  className={`w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 border ${
+                    regErrors.password ? 'border-red-400' : 'border-white/30'
+                  }`}
+                  value={regPassword}
+                  onChange={handleRegPasswordChange}
+                  required
+                  disabled={loading}
+                />
+                {regErrors.password && (
+                  <div className="text-red-300 text-sm mt-2">{regErrors.password}</div>
+                )}
+              </div>
+              <div>
+                <input
+                  type="password"
+                  placeholder="Confirm password"
+                  className={`w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 border ${
+                    regErrors.confirmPassword ? 'border-red-400' : 'border-white/30'
+                  }`}
+                  value={confirmPassword}
+                  onChange={handleConfirmPasswordChange}
+                  required
+                  disabled={loading}
+                />
+                {regErrors.confirmPassword && (
+                  <div className="text-red-300 text-sm mt-2">{regErrors.confirmPassword}</div>
+                )}
+              </div>
+              <button
+                type="submit"
+                disabled={isRegisterDisabled}
+                className="w-full py-3 rounded-lg bg-blue-500 text-white font-semibold text-lg hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {loading ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin h-5 w-5 mr-2 text-white" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Loading...
+                  </span>
+                ) : 'Create Account'}
+              </button>
+            </form>
+          )}
         </div>
-        {/* Form */}
-        {tab === 'login' ? (
-          <form className="space-y-4" onSubmit={handleLogin} noValidate>
-            {loginServerError && (
-              <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-2 rounded text-center mb-2">
-                {loginServerError}
-              </div>
-            )}
-            <div>
-              <input
-                type="email"
-                placeholder="Enter your email"
-                className={`w-full px-4 py-3 rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-400 ${loginErrors.email ? 'border border-red-400' : ''}`}
-                value={loginEmail}
-                onChange={handleLoginEmailChange}
-                required
-              />
-              {loginErrors.email && (
-                <div className="text-red-500 text-sm mt-1">{loginErrors.email}</div>
-              )}
-            </div>
-            <div>
-              <input
-                type="password"
-                placeholder="Enter password"
-                className={`w-full px-4 py-3 rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-400 ${loginErrors.password ? 'border border-red-400' : ''}`}
-                value={loginPassword}
-                onChange={handleLoginPasswordChange}
-                required
-              />
-              {loginErrors.password && (
-                <div className="text-red-500 text-sm mt-1">{loginErrors.password}</div>
-              )}
-            </div>
-            <button
-              type="submit"
-              disabled={isLoginDisabled}
-              className="w-full py-3 rounded-lg bg-purple-500 text-white font-semibold text-lg hover:bg-purple-600 transition disabled:opacity-50"
-            >
-              {loading ? 'Signing in...' : 'Log In'}
-            </button>
-          </form>
-        ) : (
-          <form className="space-y-4" onSubmit={handleRegister} noValidate>
-            {regServerError && (
-              <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-2 rounded text-center mb-2">
-                {regServerError}
-              </div>
-            )}
-            <div>
-              <input
-                type="text"
-                placeholder="Enter your name"
-                className={`w-full px-4 py-3 rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-400 ${regErrors.name ? 'border border-red-400' : ''}`}
-                value={name}
-                onChange={handleRegNameChange}
-                required
-              />
-              {regErrors.name && (
-                <div className="text-red-500 text-sm mt-1">{regErrors.name}</div>
-              )}
-            </div>
-            <div>
-              <input
-                type="email"
-                placeholder="Enter your email"
-                className={`w-full px-4 py-3 rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-400 ${regErrors.email ? 'border border-red-400' : ''}`}
-                value={regEmail}
-                onChange={handleRegEmailChange}
-                required
-              />
-              {regErrors.email && (
-                <div className="text-red-500 text-sm mt-1">{regErrors.email}</div>
-              )}
-            </div>
-            <div>
-              <input
-                type="password"
-                placeholder="Create password"
-                className={`w-full px-4 py-3 rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-400 ${regErrors.password ? 'border border-red-400' : ''}`}
-                value={regPassword}
-                onChange={handleRegPasswordChange}
-                required
-              />
-              {regErrors.password && (
-                <div className="text-red-500 text-sm mt-1">{regErrors.password}</div>
-              )}
-            </div>
-            <div>
-              <input
-                type="password"
-                placeholder="Confirm password"
-                className={`w-full px-4 py-3 rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-400 ${regErrors.confirmPassword ? 'border border-red-400' : ''}`}
-                value={confirmPassword}
-                onChange={handleConfirmPasswordChange}
-                required
-              />
-              {regErrors.confirmPassword && (
-                <div className="text-red-500 text-sm mt-1">{regErrors.confirmPassword}</div>
-              )}
-            </div>
-            <button
-              type="submit"
-              disabled={isRegisterDisabled}
-              className="w-full py-3 rounded-lg bg-purple-500 text-white font-semibold text-lg hover:bg-purple-600 transition disabled:opacity-50"
-            >
-              {loading ? 'Creating account...' : 'Create Account'}
-            </button>
-          </form>
-        )}
       </div>
     </div>
   );
