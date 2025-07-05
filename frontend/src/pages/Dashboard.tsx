@@ -1,27 +1,83 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { DateTime } from 'luxon';
 
-const WEATHER_API_KEY = '35e87dc48724e712b1167e3ee717d57a'; // <-- Your key
+const WEATHER_API_KEY = '35e87dc48724e712b1167e3ee717d57a';
 
-// Default cities (Surat, Ahmedabad)
-const DEFAULT_CITIES = [
+// For demo: a small static list for autosuggest. Replace with a real API for production.
+const CITY_SUGGESTIONS = [
+  "Amsterdam", "Paris", "London", "Surat", "Ahmedabad", "New York", "Tokyo", "Sydney", "Berlin", "Delhi"
+];
+
+const FIXED_CITIES = [
   { city: "Surat", country: "IN" },
   { city: "Ahmedabad", country: "IN" }
 ];
 
+// Weather backgrounds
+const WEATHER_BACKGROUNDS: Record<string, string> = {
+  clear:    "url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1200&q=80')",
+  clouds:   "url('https://images.unsplash.com/photo-1534088568595-a066f410bcda?auto=format&fit=crop&w=1200&q=80')",
+  rain:     "url('https://images.unsplash.com/photo-1519692933481-e162a57d6721?auto=format&fit=crop&w=1200&q=80')",
+  drizzle:  "url('https://images.unsplash.com/photo-1551854838-02c201dd54c5?auto=format&fit=crop&w=1200&q=80')",
+  thunderstorm: "url('https://images.unsplash.com/photo-1605727216801-e27ce1d0cc28?auto=format&fit=crop&w=1200&q=80')",
+  snow:     "url('https://images.unsplash.com/photo-1491002052546-bf38f186af56?auto=format&fit=crop&w=1200&q=80')",
+  mist:     "url('https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?auto=format&fit=crop&w=1200&q=80')",
+  fog:      "url('https://images.unsplash.com/photo-1508514177221-188b1cf16e2e?auto=format&fit=crop&w=1200&q=80')",
+  wind:     "url('https://images.unsplash.com/photo-1483729558449-99ef09a8c325?auto=format&fit=crop&w=1200&q=80')",
+  haze:     "url('https://images.unsplash.com/photo-1534088568595-a066f410bcda?auto=format&fit=crop&w=1200&q=80')",
+  smoke:    "url('https://images.unsplash.com/photo-1519452575410-b5ca07b1efa1?auto=format&fit=crop&w=1200&q=80')",
+  dust:     "url('https://images.unsplash.com/photo-1581091215367-55f290f9d545?auto=format&fit=crop&w=1200&q=80')",
+  sand:     "url('https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=1200&q=80')",
+  squall:   "url('https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=1200&q=80')",
+  tornado:  "url('https://images.unsplash.com/photo-1534131657664-2f7e843493f5?auto=format&fit=crop&w=1200&q=80')",
+  default:  "url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1200&q=80')"
+};
+
+
+const getWeatherIcon = (main: string) => {
+  switch (main?.toLowerCase()) {
+    case "clouds": return "🌥️";
+    case "clear": return "☀️";
+    case "rain": return "🌧️";
+    case "drizzle": return "🌦️";
+    case "thunderstorm": return "⛈️";
+    case "snow": return "❄️";
+    case "mist": return "🌫️";
+    default: return "🌡️";
+  }
+};
+
+const getCityIllustration = (city: string, country: string) => {
+  if (/surat/i.test(city)) return "🍲";
+  if (/ahmedabad/i.test(city)) return "🏛️";
+  if (/paris|france/i.test(city + country)) return "🗼";
+  return "🌍";
+};
+
+const getBackgroundByWeather = (main: string) => {
+  console.log('main', main);
+  return WEATHER_BACKGROUNDS[main?.toLowerCase()] || WEATHER_BACKGROUNDS.default;
+};
+
 const Dashboard: React.FC = () => {
   const { user, logout, loading, isAuthenticated } = useAuth();
   const [cityInput, setCityInput] = useState('');
-  const [selectedCity, setSelectedCity] = useState(DEFAULT_CITIES[0]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [weather, setWeather] = useState<any>(null);
   const [localTime, setLocalTime] = useState('');
-  const [festival, setFestival] = useState('');
-  const [aiSummary, setAiSummary] = useState('');
-  const [loadingAI, setLoadingAI] = useState(false);
   const [error, setError] = useState('');
   const [searching, setSearching] = useState(false);
+  const [fixedWeather, setFixedWeather] = useState<any[]>([null, null]);
+  const [fixedTimes, setFixedTimes] = useState<string[]>(['', '']);
+  const [fixedZones, setFixedZones] = useState<string[]>(['', '']);
+  const [festival, setFestival] = useState('No major festival today');
+  const [aiSummary, setAiSummary] = useState('');
+  const [loadingAI, setLoadingAI] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
+  const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,56 +86,81 @@ const Dashboard: React.FC = () => {
     }
   }, [isAuthenticated, loading, navigate]);
 
-  // Fetch weather when selectedCity changes
+  // Fetch weather for searched city
   useEffect(() => {
-    if (selectedCity) {
-      fetchCityWeather(selectedCity.city, selectedCity.country);
-    }
+    if (selectedCity) fetchWeather(selectedCity, setWeather, setLocalTime);
     // eslint-disable-next-line
   }, [selectedCity]);
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
-
-  // Fetch weather and related info for a city
-  const fetchCityWeather = async (city: string, country?: string) => {
-    setError('');
-    setWeather(null);
-    setAiSummary('');
-    setFestival('');
-    setLocalTime('');
-    setSearching(true);
-    try {
-      const q = country ? `${city},${country}` : city;
-      const res = await fetch(
-        `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(q)}&appid=${WEATHER_API_KEY}&units=metric`
+  // Fetch weather for fixed cities
+  useEffect(() => {
+    FIXED_CITIES.forEach((c, i) => {
+      fetchWeather(
+        c.city,
+        (data: any) => {
+          setFixedWeather(prev => {
+            const arr = [...prev];
+            arr[i] = data;
+            return arr;
+          });
+          // Set local time and timezone
+          if (data && data.timezone !== undefined) {
+            const dt = DateTime.utc().plus({ seconds: data.timezone });
+            setFixedTimes(prev => {
+              const arr = [...prev];
+              arr[i] = dt.toFormat("hh:mm a");
+              return arr;
+            });
+            setFixedZones(prev => {
+              const arr = [...prev];
+              arr[i] = `UTC${data.timezone >= 0 ? '+' : ''}${data.timezone / 3600}`;
+              return arr;
+            });
+          }
+        }
       );
-      if (!res.ok) {
-        throw new Error('City not found or API error.');
-      }
+    });
+    // eslint-disable-next-line
+  }, []);
+
+  // Autosuggest logic
+  useEffect(() => {
+    if (cityInput.length < 2) {
+      setSuggestions([]);
+      setActiveSuggestion(-1);
+      return;
+    }
+    const filtered = CITY_SUGGESTIONS.filter(c =>
+      c.toLowerCase().startsWith(cityInput.toLowerCase()) &&
+      c.toLowerCase() !== cityInput.toLowerCase()
+    ).slice(0, 5);
+    setSuggestions(filtered);
+    setActiveSuggestion(-1);
+  }, [cityInput]);
+
+  const fetchWeather = async (
+    city: string,
+    setWeatherFn: (data: any) => void,
+    setLocalTimeFn?: (time: string) => void
+  ) => {
+    try {
+      setError('');
+      setWeatherFn(null);
+      if (setLocalTimeFn) setLocalTimeFn('');
+      setSearching(true);
+      const res = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${WEATHER_API_KEY}&units=metric`
+      );
+      if (!res.ok) throw new Error('City not found or API error.');
       const data = await res.json();
-      setWeather(data);
-
-      // Local time
-      const timezoneOffset = data.timezone; // in seconds
-      const local = DateTime.utc().plus({ seconds: timezoneOffset });
-      setLocalTime(local.toFormat("cccc, dd LLL yyyy • hh:mm a"));
-
-      // Festival (placeholder)
-      setFestival('No major festival today');
-
-      // AI summary
-      fetchAISummary({
-        city: data.name,
-        country: data.sys.country,
-        temp: data.main.temp,
-        humidity: data.main.humidity,
-        condition: data.weather[0].main,
-        windSpeed: data.wind.speed,
-        datetime: local.toISO(),
-      });
+      setWeatherFn(data);
+      if (setLocalTimeFn) {
+        const timezoneOffset = data.timezone;
+        const local = DateTime.utc().plus({ seconds: timezoneOffset });
+        setLocalTimeFn(local.toFormat("cccc, dd LLL yyyy • hh:mm a"));
+      }
+      // Fetch AI summary for main city only
+      if (setWeatherFn === setWeather) fetchAISummary(data);
     } catch (err: any) {
       setError(err.message || 'Could not fetch weather.');
     } finally {
@@ -87,20 +168,9 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Search for any city
-  const handleCitySearch = () => {
-    if (!cityInput.trim()) {
-      setError('Please enter a city name.');
-      return;
-    }
-    setSelectedCity({ city: cityInput.trim(), country: '' });
-    setCityInput('');
-  };
-
   const fetchAISummary = async (data: any) => {
     setLoadingAI(true);
     setAiSummary('');
-    setError('');
     try {
       const aiRes = await fetch('http://localhost:8000/api/ai-summary', {
         method: 'POST',
@@ -109,7 +179,15 @@ const Dashboard: React.FC = () => {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         credentials: 'include',
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          city: data.name,
+          country: data.sys.country,
+          temp: data.main.temp,
+          humidity: data.main.humidity,
+          condition: data.weather[0].main,
+          windSpeed: data.wind.speed,
+          datetime: DateTime.utc().plus({ seconds: data.timezone }).toISO(),
+        }),
       });
 
       if (!aiRes.ok) {
@@ -119,15 +197,54 @@ const Dashboard: React.FC = () => {
       const aiData = await aiRes.json();
       setAiSummary(aiData.summary);
     } catch (err: any) {
-      setError(err.message || 'Could not fetch AI summary.');
+      setAiSummary('Could not fetch AI summary.');
     } finally {
       setLoadingAI(false);
     }
   };
 
+  const handleCitySearch = () => {
+    if (!cityInput.trim()) {
+      setError('Please enter a city name.');
+      return;
+    }
+    setSelectedCity(cityInput.trim());
+    setCityInput('');
+    setSuggestions([]);
+    setActiveSuggestion(-1);
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (suggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      setActiveSuggestion(prev => Math.min(prev + 1, suggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      setActiveSuggestion(prev => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      if (activeSuggestion >= 0 && activeSuggestion < suggestions.length) {
+        setSelectedCity(suggestions[activeSuggestion]);
+        setCityInput('');
+        setSuggestions([]);
+        setActiveSuggestion(-1);
+      } else {
+        handleCitySearch();
+      }
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  // Get background based on weather
+  const mainWeather = weather?.weather?.[0]?.main?.toLowerCase() || 'default';
+  console.log('mainWeather', mainWeather);
+  const backgroundImage = getBackgroundByWeather(mainWeather);
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
       </div>
     );
@@ -136,86 +253,167 @@ const Dashboard: React.FC = () => {
   if (!isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Header */}
-      <header className="w-full bg-white shadow flex justify-between items-center px-8 py-4">
-        <div className="flex items-center space-x-2">
-          <span className="text-2xl text-yellow-400">🌈</span>
-          <span className="text-xl font-bold text-blue-700 tracking-wide">WECAST</span>
-        </div>
-        <div className="flex items-center space-x-4">
-          <span className="text-lg font-bold text-blue-700">{user?.name || user?.email}</span>
-          <button
-            onClick={handleLogout}
-            className="py-2 px-4 rounded bg-blue-500 text-white font-semibold hover:bg-blue-600 transition"
-          >
-            Logout
-          </button>
-        </div>
-      </header>
-
-      {/* City Selector */}
-      <div className="flex flex-row justify-center gap-6 mt-8 mb-4">
-        {DEFAULT_CITIES.map((city, idx) => (
-          <button
-            key={city.city}
-            className={`rounded-xl px-6 py-3 font-bold shadow transition ${
-              selectedCity.city.toLowerCase() === city.city.toLowerCase()
-                ? "bg-gradient-to-br from-blue-500 to-purple-500 text-white scale-105"
-                : "bg-white text-blue-700 hover:bg-blue-100"
-            }`}
-            onClick={() => setSelectedCity(city)}
-            disabled={searching}
-          >
-            {city.city}
-          </button>
-        ))}
-      </div>
-
-      {/* City Search */}
-      <div className="flex flex-col items-center">
-        <div className="flex gap-2">
-          <input
-            className="px-4 py-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            value={cityInput}
-            onChange={e => setCityInput(e.target.value)}
-            placeholder="Enter any city"
-            onKeyDown={e => { if (e.key === 'Enter') handleCitySearch(); }}
-            disabled={searching}
-          />
-          <button
-            onClick={handleCitySearch}
-            className="px-4 py-2 rounded bg-blue-500 text-white font-semibold hover:bg-blue-600 transition"
-            disabled={searching}
-          >
-            {searching ? 'Searching...' : 'Search'}
-          </button>
-        </div>
-        {error && <div className="text-red-500 mt-2">{error}</div>}
-      </div>
-
-      {/* Weather, Time, Festival, AI Summary */}
+    <div
+      className="min-h-screen w-full flex flex-col items-center justify-center"
+      style={{
+        backgroundImage: backgroundImage,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
+      {/* Black overlay only when weather is shown */}
       {weather && (
-        <div className="flex flex-col items-center w-full max-w-2xl mx-auto mt-8">
-          <div className="bg-white/90 rounded-lg p-6 shadow text-gray-800 w-full">
-            <div className="text-2xl font-bold mb-2">{weather.name}, {weather.sys.country}</div>
-            <div className="mb-2">Weather: <span className="font-semibold">{weather.main.temp}°C, {weather.weather[0].main}</span></div>
-            <div className="mb-2">Humidity: {weather.main.humidity}% | Wind: {weather.wind.speed} km/h</div>
-            <div className="mb-2">Local Time: <span className="font-semibold">{localTime}</span></div>
-            <div className="mb-2">Festival: <span className="font-semibold">{festival}</span></div>
+        <div className="absolute inset-0 bg-black/40 z-0" />
+      )}
+      {/* Main Content */}
+      <div className="relative z-10 w-full max-w-6xl mx-auto flex flex-row gap-8 py-12">
+        {/* Main Weather Card */}
+        <div className="flex-1">
+          {/* Search bar */}
+          <div className="flex justify-center mb-6">
+            <div className="relative w-full max-w-md">
+              <input
+                ref={inputRef}
+                className="w-full px-5 py-3 rounded-full bg-white/20 text-white placeholder-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 shadow"
+                value={cityInput}
+                onChange={e => setCityInput(e.target.value)}
+                placeholder="Type a city... let's chase the weather!"
+                onKeyDown={handleInputKeyDown}
+                disabled={searching}
+                autoComplete="off"
+              />
+              <button
+                onClick={handleCitySearch}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1 rounded-full font-semibold shadow transition ${
+                  cityInput.trim()
+                    ? 'bg-blue-500 text-white hover:bg-blue-600'
+                    : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                }`}
+                disabled={!cityInput.trim() || searching}
+              >
+                Search
+              </button>
+              {/* Autosuggestions */}
+              {suggestions.length > 0 && (
+                <div className="absolute z-20 mt-2 w-full bg-white/95 rounded shadow text-blue-800">
+                  {suggestions.map((s, idx) => (
+                    <div
+                      key={s}
+                      className={`px-4 py-2 cursor-pointer hover:bg-blue-100 ${
+                        idx === activeSuggestion ? 'bg-blue-200 font-bold' : ''
+                      }`}
+                      onMouseDown={() => {
+                        setSelectedCity(s);
+                        setCityInput('');
+                        setSuggestions([]);
+                        setActiveSuggestion(-1);
+                      }}
+                    >
+                      {s}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          {/* AI Summary */}
-          <div className="w-full">
-            {loadingAI && <div className="text-center text-blue-700 mt-4">Getting AI summary...</div>}
-            {aiSummary && (
-              <div className="bg-white/90 rounded-lg p-6 mt-4 shadow text-gray-800 w-full">
-                <div className="text-lg font-semibold mb-2">AI Weather Summary</div>
-                <div className="whitespace-pre-line">{aiSummary}</div>
+          {/* Daily Forecast Card */}
+          {weather && (
+            <div className="rounded-3xl bg-black/60 shadow-2xl p-8 text-white mb-8">
+              <div className="text-2xl font-bold mb-2">Daily Forecast</div>
+              <div className="flex flex-row items-center justify-between mb-4">
+                <div>
+                  <div className="text-3xl font-bold">{weather.name}</div>
+                  <div className="text-gray-300 text-sm">
+                    {localTime}
+                  </div>
+                </div>
+                <div className="text-7xl">{getWeatherIcon(weather.weather?.[0]?.main)}</div>
+                <div className="flex flex-col items-end">
+                  <div className="text-4xl font-bold">{Math.round(weather.main.temp * 10) / 10}°</div>
+                  <div className="text-gray-300">{weather.weather?.[0]?.description}</div>
+                </div>
               </div>
-            )}
+              <div className="grid grid-cols-3 gap-4 text-center text-lg">
+                <div>
+                  <div className="font-bold">{Math.round(weather.main.temp_max * 10) / 10}°</div>
+                  <div className="text-xs text-gray-300">High</div>
+                </div>
+                <div>
+                  <div className="font-bold">{Math.round(weather.main.temp_min * 10) / 10}°</div>
+                  <div className="text-xs text-gray-300">Low</div>
+                </div>
+                <div>
+                  <div className="font-bold">{weather.wind.speed} km/h</div>
+                  <div className="text-xs text-gray-300">Wind Speed</div>
+                </div>
+                <div>
+                  <div className="font-bold">{weather.main.humidity}%</div>
+                  <div className="text-xs text-gray-300">Humidity</div>
+                </div>
+                <div>
+                  <div className="font-bold">
+                    {DateTime.fromSeconds(weather.sys.sunrise + weather.timezone).toFormat('h:mm a')}
+                  </div>
+                  <div className="text-xs text-gray-300">Sunrise</div>
+                </div>
+                <div>
+                  <div className="font-bold">
+                    {DateTime.fromSeconds(weather.sys.sunset + weather.timezone).toFormat('h:mm a')}
+                  </div>
+                  <div className="text-xs text-gray-300">Sunset</div>
+                </div>
+              </div>
+              {error && <div className="text-red-400 text-center mt-2">{error}</div>}
+            </div>
+          )}
+          {/* Festival & AI Summary */}
+          <div className="grid grid-cols-2 gap-6">
+            <div className="rounded-3xl bg-black/60 shadow-2xl p-6 text-white">
+              <div className="font-bold text-lg mb-2">🎉 Today's Festival</div>
+              <div className="text-white font-bold text-lg">{festival}</div>
+            </div>
+            <div className="rounded-3xl bg-black/60 shadow-2xl p-6 text-white">
+              <div className="font-bold text-lg mb-2">🤖 AI Weather Summary</div>
+              {loadingAI ? (
+                <div>Getting AI summary...</div>
+              ) : (
+                <div className="whitespace-pre-line font-bold">{aiSummary}</div>
+              )}
+            </div>
           </div>
         </div>
-      )}
+        {/* Right Side: Fixed Cities */}
+        <div className="flex flex-col gap-8 w-[260px]">
+          {FIXED_CITIES.map((c, i) => (
+            <div
+              key={c.city}
+              className="rounded-3xl bg-gradient-to-br from-blue-900/70 via-blue-600/60 to-blue-400/50 shadow-xl p-6 flex flex-col items-center text-white backdrop-blur-md"
+            >
+              <div className="text-3xl mb-2">{getCityIllustration(fixedWeather[i]?.name || c.city, fixedWeather[i]?.sys?.country || c.country)}</div>
+              <div className="text-2xl font-extrabold mb-1 tracking-wide drop-shadow">{c.city.toUpperCase()}</div>
+              {fixedWeather[i] ? (
+                <>
+                  <div className="text-xl font-bold mb-1">{Math.round(fixedWeather[i].main.temp * 10) / 10}°</div>
+                  <div className="text-gray-100 text-xs mb-1">{fixedWeather[i].weather?.[0]?.main}</div>
+                  <div className="text-gray-100 text-xs mb-1">min {Math.round(fixedWeather[i].main.temp_min * 10) / 10}° / max {Math.round(fixedWeather[i].main.temp_max * 10) / 10}°</div>
+                  <div className="text-yellow-200 text-xs font-bold mb-1">Timezone: {fixedZones[i]}</div>
+                  <div className="text-yellow-100 text-xs font-bold">Local Time: {fixedTimes[i]}</div>
+                </>
+              ) : (
+                <div className="text-gray-400 text-xs">Loading...</div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Logout button fixed at top right */}
+      <button
+        onClick={handleLogout}
+        className="fixed top-6 right-8 py-2 px-4 rounded bg-blue-500 text-white font-semibold hover:bg-blue-600 transition z-50"
+      >
+        Logout
+      </button>
     </div>
   );
 };
